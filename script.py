@@ -83,27 +83,24 @@ def log_survival_gm(x, a, b, l):
 
 model = lmfit.Model(log_survival_gm, independent_vars=['x'])
 
-lmin = 1.e-4
-lmax = 1.
-
-amin = -1.e-6
+amin = 0.
 amax = 1.
 
 bmin = 0.
 bmax = 0.1
 
+lmin = 0.
+lmax = 1.
+
 fit_result = model.fit(
-    np.log10(prob_survival), x=age[:-1],
-    a=lmfit.Parameter(value=1.e-5, min=amin, max=amax),
+    np.log(prob_survival), x=age[:-1],
+    a=lmfit.Parameter(value=1.e-6, min=amin, max=amax),
     b=lmfit.Parameter(value=0.085, min=bmin, max=bmax),
-    l=lmfit.Parameter(value=1.e-5, min=lmin, max=lmax)
+    l=lmfit.Parameter(value=1.e-6, min=lmin, max=lmax)
 )
 
-# 1-sigma limits in "lmfit" may be obtained with
-# best_fit = fit_result.params
-
 # Full report in "lmfit" may be obtained with
-# print fit_result.fit_report()
+print fit_result.fit_report(min_correl=1.e-6)
 
 # Covariance matrix
 cov = fit_result.covar
