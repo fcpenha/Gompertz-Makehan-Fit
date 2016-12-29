@@ -8,6 +8,7 @@
 # Common Python libraries
 import numpy as np
 from matplotlib import pyplot as plt
+from scipy import stats
 
 # Data related Python libraries
 import pyexcel_xlsx as pe
@@ -90,10 +91,12 @@ par.add('l', value=1.e-4, min=0., max=1.)
 
 
 # Neyman chi-squared (statistical error)
+#  We take the log of the quantities in the chi-squared,
+#  because the data vary over many order of magnitudes
 def residual(p):
     return np.asarray([
                           (np.log(survival_gm(age[j], p['a'], p['b'], p['l'])) -
-                           np.log(rate_survival[j])) ** 2 / np.log(rate_survival[j])
+                           np.log(rate_survival[j])) ** 2 / np.abs(np.log(rate_survival[j]))
                           for j in range(0, len(age[:-1]))])
 
 
@@ -114,6 +117,23 @@ fit_result = out2.params
 
 # Covariance matrix
 cov = out2.covar
+
+# Min-chi-squared
+min_chi2 = sum(residual(fit_result))
+
+# Number of degrees of freedom for 3 parameters
+n_degrees = len(residual(fit_result)) - 3
+
+# p-value
+p_value = stats.chi2.cdf(min_chi2, n_degrees)
+# Notice: the p-value traditionally used to test a fit is (1-p)
+#         in relation to p-values used in other tests. In the present
+#         case, p=0 is considered the worst possible fit and p=1 is
+#         considered to be the perfect fit.
+
+print '----------------------------'
+print 'p-value =', p_value
+print '----------------------------'
 
 
 # %%%%%%%%%%%%%%%%%%%%%%
@@ -189,7 +209,8 @@ plt.ylim([1.e-5, 1.])
 plt.xlabel(r'Age (years)')
 plt.ylabel(r'Death rate')
 
-plt.title(r'$\lambda =$' + str(fit_result['l'].value) + '\n' +
+plt.title(r'p-value $=$' + str(p_value) + '\n' +
+          r'$\lambda =$' + str(fit_result['l'].value) + '\n' +
           r'$\alpha =$' + str(fit_result['a'].value) + '\n' +
           r'$\beta =$' + str(fit_result['b'].value)
           )
