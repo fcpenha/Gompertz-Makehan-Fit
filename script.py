@@ -19,7 +19,7 @@ import ast
 import lmfit
 
 # Pyplot configuration
-fs = 24
+fs = 20
 plt.rc('text', usetex=True, fontsize=14)
 plt.rc('ytick', labelsize=fs)
 plt.rc('xtick', labelsize=fs)
@@ -198,7 +198,7 @@ plt.legend(loc='upper left', frameon=True, numpoints=1, ncol=1)
 
 plt.loglog()
 plt.tight_layout()
-plt.savefig('./plots/plot_pop.pdf')
+plt.savefig('./plots/plot_pop.png')
 plt.close()
 
 # %%%%%%%%%%%%%%%%%
@@ -225,7 +225,7 @@ plt.colorbar()
 plt.ylabel(r'$\beta \times 10^2 \,\, (\mathrm{year}^{-1})$')
 
 plt.tight_layout()
-plt.savefig('./plots/plot_contours_alpha_beta.pdf')
+plt.savefig('./plots/plot_contours_alpha_beta.png')
 plt.close()
 
 # %%% b versus l %%%
@@ -244,5 +244,5 @@ plt.colorbar()
 plt.ylabel(r'$\beta \times 10^2 \,\, (\mathrm{year}^{-1})$')
 
 plt.tight_layout()
-plt.savefig('./plots/plot_contours_lambda_beta.pdf')
+plt.savefig('./plots/plot_contours_lambda_beta.png')
 plt.close()
