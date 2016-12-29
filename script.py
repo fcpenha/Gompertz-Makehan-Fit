@@ -89,7 +89,6 @@ par.add('a', value=1.e-5, min=1.e-6, max=1.)
 par.add('b', value=0.085, min=0., max=1.)
 par.add('l', value=1.e-4, min=0., max=1.)
 
-
 # Neyman chi-squared (statistical error)
 #  We take the log of the quantities in the chi-squared,
 #  because the data vary over many order of magnitudes
@@ -219,6 +218,7 @@ plt.legend(loc='upper left', frameon=True, numpoints=1, ncol=1)
 
 plt.loglog()
 plt.tight_layout()
+plt.savefig('./plots/plot_pop.pdf')
 plt.savefig('./plots/plot_pop.png')
 plt.close()
 
@@ -246,6 +246,7 @@ plt.colorbar()
 plt.ylabel(r'$\beta \times 10^2 \,\, (\mathrm{year}^{-1})$')
 
 plt.tight_layout()
+plt.savefig('./plots/plot_contours_alpha_beta.pdf')
 plt.savefig('./plots/plot_contours_alpha_beta.png')
 plt.close()
 
@@ -265,5 +266,6 @@ plt.colorbar()
 plt.ylabel(r'$\beta \times 10^2 \,\, (\mathrm{year}^{-1})$')
 
 plt.tight_layout()
+plt.savefig('./plots/plot_contours_lambda_beta.pdf')
 plt.savefig('./plots/plot_contours_lambda_beta.png')
 plt.close()
