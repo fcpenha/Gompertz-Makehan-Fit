@@ -10,6 +10,8 @@ The ELT16 table can be found in the **data** directory, in the **xlsx format**. 
     import json
     import ast
 
+Usage:
+
     # Read data from ELT16.xlsx
     age = np.asarray([
                          n[0] for n in list(
