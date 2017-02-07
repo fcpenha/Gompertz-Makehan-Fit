@@ -89,6 +89,7 @@ par.add('a', value=1.e-5, min=1.e-6, max=1.)
 par.add('b', value=0.085, min=0., max=1.)
 par.add('l', value=1.e-4, min=0., max=1.)
 
+
 # Neyman chi-squared (statistical error)
 #  We take the log of the quantities in the chi-squared,
 #  because the data vary over many order of magnitudes
@@ -123,12 +124,29 @@ min_chi2 = sum(residual(fit_result))
 # Number of degrees of freedom for 3 parameters
 n_degrees = len(residual(fit_result)) - 3
 
+
+def func_p_value(c, n):
+    """
+
+    c : chi-squared value
+    n : number of degree of freedom (d.o.f.),
+        i.e. number of points subtracted by number of parameters
+
+    Notice: p=0 is considered the worst possible fit and p=1 is
+    considered to be the perfect fit. For example,
+
+    In[235]: print(func_p_value(0, 45))
+    Out[235]: 1.0
+
+    In[236]: print(func_p_value(100, 45))
+    Out[236]: 4.67686463534e-06
+
+    """
+    return 1. - stats.chi2.cdf(c, n)
+
+
 # p-value
-p_value = stats.chi2.cdf(min_chi2, n_degrees)
-# Notice: the p-value traditionally used to test a fit is (1-p)
-#         in relation to p-values used in other tests. In the present
-#         case, p=0 is considered the worst possible fit and p=1 is
-#         considered to be the perfect fit.
+p_value = func_p_value(min_chi2, n_degrees)
 
 print '----------------------------'
 print 'p-value =', p_value
