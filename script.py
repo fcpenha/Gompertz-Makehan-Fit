@@ -80,7 +80,7 @@ def k_gm(x, b):
 
 
 def survival_gm(x, a, b, l):
-    return np.exp(-l - a * k_gm(x, b))
+    return np.exp(-l * x - a * k_gm(x, b))
 
 
 par = lmfit.Parameters()
