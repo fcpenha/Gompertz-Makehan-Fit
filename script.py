@@ -20,12 +20,12 @@ import ast
 import lmfit
 
 # Pyplot configuration
-fs = 20
-plt.rc('text', usetex=True, fontsize=14)
+fs = 14
+# plt.rc('text', usetex=True, fontsize=14)
 plt.rc('ytick', labelsize=fs)
 plt.rc('xtick', labelsize=fs)
 plt.rc('axes', labelsize=fs)
-plt.rc('legend', fontsize=fs - 6)
+plt.rc('legend', fontsize=fs)
 plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 
 # %%%%%%%%%%%%%
@@ -37,68 +37,51 @@ plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 # %%%%%%%%%%%%%%%%%
 
 # Read data from ELT16.xlsx
-age = np.asarray([
-                     n[0] for n in list(
-        ast.literal_eval(
-            json.dumps(
-                pe.get_data('./data/ELT16.xlsx', start_column=0, column_limit=1)
-            )[:-2][101:]
-        )
-    )][:-5],
-                 dtype=float)
+data = np.genfromtxt('./data/ELT16.csv', delimiter=',').T
 
-pop = np.asarray([
-                     n[0] for n in list(
-        ast.literal_eval(
-            json.dumps(
-                pe.get_data('./data/ELT16.xlsx', start_column=2, column_limit=3)
-            )[:-2][33:]
-        )
-    )],
-                 dtype=float)
+age = data[0]
+
+pop = data[1]
 
 # %%%%%%%%%%%%%%%%%%%%
 # %%% PROCESS DATA %%%
 # %%%%%%%%%%%%%%%%%%%%
 
-rate_death = np.asarray([
-                            (pop[j] - pop[j + 1]) / pop[j] for j in range(0, len(pop) - 1)
-                            ])
-
-rate_survival = 1. - rate_death
-
+cumulative_hazard = np.asarray([
+                        (pop[j] - pop[j + 1]) / pop[j] for j in range(0, len(pop) - 1)
+                    ])
 
 # %%%%%%%%%%%
 # %%% FIT %%%
 # %%%%%%%%%%%
 
-# Gompertz-Makehan (t=1)
+def f(x, p):
+    return (np.exp(p * x) - 1.) / p
 
-
-def k_gm(x, b):
-    return np.exp(b * x) * (np.exp(b) - 1.) / b
-
-
-def survival_gm(x, a, b, l):
-    return np.exp(-l - a * k_gm(x, b))
-
+def cumulative_hazard_gm(x, a, b, l):
+        return l * x + a * f(x, b)
 
 par = lmfit.Parameters()
 
-par.add('a', value=1.e-5, min=1.e-6, max=1.)
-par.add('b', value=0.085, min=0., max=1.)
-par.add('l', value=1.e-4, min=0., max=1.)
-
+par.add('a', value=1.e-6, min=0., max=1.)
+par.add('b', value=1.e-1, min=0., max=1.)
+par.add('l', value=1.e-6, min=0., max=1.)
 
 # Neyman chi-squared (statistical error)
 #  We take the log of the quantities in the chi-squared,
 #  because the data vary over many order of magnitudes
 def residual(p):
     return np.asarray([
-                          (np.log(survival_gm(age[j], p['a'], p['b'], p['l'])) -
-                           np.log(rate_survival[j])) ** 2 / np.abs(np.log(rate_survival[j]))
-                          for j in range(0, len(age[:-1]))])
+                        (
+                            (
+                                cumulative_hazard_gm(x=age[j], a=p['a'], b=p['b'], l=p['l'])
+                                - cumulative_hazard[j]
+                            ) / cumulative_hazard[j]
+                        ) ** 2
+                for j in range(0, len(age) - 1)
+            ])
 
+age = age[1:]
 
 # create Minimizer
 mini = lmfit.Minimizer(residual, par)
@@ -148,9 +131,9 @@ def func_p_value(c, n):
 # p-value
 p_value = func_p_value(min_chi2, n_degrees)
 
-print '----------------------------'
-print 'p-value =', p_value
-print '----------------------------'
+print('----------------------------')
+print(f'p-value ={p_value}')
+print('----------------------------')
 
 
 # %%%%%%%%%%%%%%%%%%%%%%
@@ -162,28 +145,33 @@ print '----------------------------'
 # %%% Partial Derivatives %%%
 
 
-def death_gm_partial(x, a, b, l):
-    kk = k_gm(x, b)
-    pp = survival_gm(x, a, b, l)
+def partial_l(x, a, b, l):
 
-    return (
-        - kk * pp,
-        - a * pp * (2. * np.exp(b * (x + 1.)) - kk / b),
-        - pp
-    )
+    return x
 
+
+def partial_a(x, a, b, l):
+
+    return f(x, b)
+
+
+def partial_b(x, a, b, l):
+
+    return a * np.exp(b * x)
 
 # %%% Error propagation %%%
 
+print(cov)
 
 def error(x):
     return np.sqrt(
-        np.sum(
-            np.asarray([[
-                            cov[i, j] * (death_gm_partial(x, **fit_result)[i] ** i) *
-                            (death_gm_partial(x, **fit_result)[j] ** j)
-                            for i in range(0, cov.shape[0])]
-                        for j in range(0, cov.shape[0])])))
+            cov[0, 0] * partial_a(x, **fit_result) * partial_a(x, **fit_result)
+            + cov[1, 1] * partial_b(x, **fit_result) * partial_b(x, **fit_result)
+            + cov[2, 2] * partial_l(x, **fit_result) * partial_l(x, **fit_result)
+            + 2. * cov[0, 1] * partial_a(x, **fit_result) * partial_b(x, **fit_result)
+            + 2. * cov[0, 2] * partial_a(x, **fit_result) * partial_l(x, **fit_result)
+            + 2. * cov[1, 2] * partial_b(x, **fit_result) * partial_l(x, **fit_result)
+    )
 
 
 # Vectorize function
@@ -197,28 +185,28 @@ vec_error = np.vectorize(error)
 # %%% Best fit curve %%%
 
 # Best-fit
-plt.plot(age[1:-1],
-         1. - survival_gm(x=age[1:-1], **fit_result),
-         color='red', linewidth=3, label=r'Best-fit', zorder=1)
+plt.plot(age,
+         cumulative_hazard_gm(x=age, a=fit_result['a'], b=fit_result['b'], l=fit_result['l']),
+         color='blue', linewidth=1, label=r'Best-fit', zorder=1)
 
-upper_band = 1. - survival_gm(x=age[1:-1], **fit_result) + vec_error(x=age[1:-1])
-lower_band = 1. - survival_gm(x=age[1:-1], **fit_result) - vec_error(x=age[1:-1])
+upper_band = cumulative_hazard_gm(x=age, **fit_result) + vec_error(x=age)
+lower_band = cumulative_hazard_gm(x=age, **fit_result) - vec_error(x=age)
 
 # 68.3 confidence band
-plt.fill_between(age[1:-1],
+plt.fill_between(age,
                  upper_band,
                  np.maximum(
-                     np.asarray([1.e-5 for j in range(0, len(age[1:-1]))]),
+                     np.asarray([1.e-5 for j in range(0, len(age))]),
                      np.asarray(lower_band)
                  ),
-                 facecolor='orange', alpha=0.5, linewidth=0.0, label=r'68.3\% confidence')
+                 facecolor='orange', alpha=0.5, linewidth=0.0, label=r'68.3% confidence')
 
 # Because we are using log scale, we cannot have a negative lower band
 # The trick is to take max("a small number", *)
 
-plt.scatter(age[1:-1],
-            rate_death[1:],
-            marker='.', zorder=2, s=30, label='ELT16 life table')
+plt.scatter(age,
+            cumulative_hazard,
+            color='black', marker='.', zorder=2, s=30, alpha=0.6, label='ELT16 life table')
 
 plt.xlim([1., 109.])
 plt.ylim([1.e-5, 1.])
@@ -236,8 +224,8 @@ plt.legend(loc='upper left', frameon=True, numpoints=1, ncol=1)
 
 plt.loglog()
 plt.tight_layout()
-plt.savefig('./plots/plot_pop.pdf')
-plt.savefig('./plots/plot_pop.png')
+plt.savefig('./plots/plot_cumulative_hazard.pdf')
+plt.savefig('./plots/plot_cumulative_hazard.png')
 plt.close()
 
 # %%%%%%%%%%%%%%%%%
@@ -248,13 +236,13 @@ ci, trace = lmfit.conf_interval(mini, out2, sigmas=[0.68, 0.95],
 
 lmfit.printfuncs.report_ci(ci)
 
-# %%% b versus a %%%
+# %%% a versus b %%%
 
 cx, cy, grid = lmfit.conf_interval2d(mini,
                                      out2,
                                      'a', 'b',
                                      nx=60, ny=60,
-                                     limits=((5.2e-5, 6.8e-5), (0.0908, 0.0882))
+                                     limits=((1.e-6, 6.e-6), (0.08, 0.11))
                                      )
 
 plt.contourf(1.e5 * cx, 1.e2 * cy, grid, [0., 0.68, 0.95, 0.99], cmap='inferno')
@@ -274,7 +262,7 @@ cx, cy, grid = lmfit.conf_interval2d(mini,
                                      out2,
                                      'l', 'b',
                                      nx=60, ny=60,
-                                     limits=((6.e-6, 8.e-6), (0.0910, 0.0880))
+                                     limits=((5.e-6, 1.6e-5), (0.08, 0.11))
                                      )
 
 plt.contourf(1.e6 * cx, 1.e2 * cy, grid, [0., 0.68, 0.95, 0.99], cmap='inferno')
@@ -286,4 +274,24 @@ plt.ylabel(r'$\beta \times 10^2 \,\, (\mathrm{year}^{-1})$')
 plt.tight_layout()
 plt.savefig('./plots/plot_contours_lambda_beta.pdf')
 plt.savefig('./plots/plot_contours_lambda_beta.png')
+plt.close()
+
+# %%% a versus l %%%
+
+cx, cy, grid = lmfit.conf_interval2d(mini,
+                                     out2,
+                                     'l', 'a',
+                                     nx=60, ny=60,
+                                     limits=((5.e-6, 1.6e-5), (1.e-6, 6.e-6))
+                                     )
+
+plt.contourf(1.e6 * cx, 1.e5 * cy, grid, [0., 0.68, 0.95, 0.99], cmap='inferno')
+
+plt.xlabel(r'$\lambda \times 10^6 \,\, (\mathrm{year}^{-1})$')
+plt.colorbar()
+plt.ylabel(r'$\alpha \times 10^5 \,\, (\mathrm{year}^{-1})$')
+
+plt.tight_layout()
+plt.savefig('./plots/plot_contours_alpha_lambda.pdf')
+plt.savefig('./plots/plot_contours_alpha_lambda.png')
 plt.close()
