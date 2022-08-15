@@ -47,7 +47,7 @@ pop = data[1]
 # %%% PROCESS DATA %%%
 # %%%%%%%%%%%%%%%%%%%%
 
-cumulative_hazard = np.asarray([
+hazard = np.asarray([
                         (pop[j] - pop[j + 1]) / pop[j] for j in range(0, len(pop) - 1)
                     ])
 
@@ -56,10 +56,10 @@ cumulative_hazard = np.asarray([
 # %%%%%%%%%%%
 
 def f(x, p):
-    return (np.exp(p * x) - 1.) / p
+    return np.exp(p * x)
 
-def cumulative_hazard_gm(x, a, b, l):
-        return l * x + a * f(x, b)
+def hazard_gm(x, a, b, l):
+        return l + a * f(x, b)
 
 par = lmfit.Parameters()
 
@@ -74,9 +74,9 @@ def residual(p):
     return np.asarray([
                         (
                             (
-                                cumulative_hazard_gm(x=age[j], a=p['a'], b=p['b'], l=p['l'])
-                                - cumulative_hazard[j]
-                            ) / cumulative_hazard[j]
+                                hazard_gm(x=age[j], a=p['a'], b=p['b'], l=p['l'])
+                                - hazard[j]
+                            ) / hazard[j]
                         ) ** 2
                 for j in range(0, len(age) - 1)
             ])
@@ -147,7 +147,7 @@ print('----------------------------')
 
 def partial_l(x, a, b, l):
 
-    return x
+    return 1.
 
 
 def partial_a(x, a, b, l):
@@ -157,11 +157,9 @@ def partial_a(x, a, b, l):
 
 def partial_b(x, a, b, l):
 
-    return a * np.exp(b * x)
+    return a * x * np.exp(b * x)
 
 # %%% Error propagation %%%
-
-print(cov)
 
 def error(x):
     return np.sqrt(
@@ -186,46 +184,49 @@ vec_error = np.vectorize(error)
 
 # Best-fit
 plt.plot(age,
-         cumulative_hazard_gm(x=age, a=fit_result['a'], b=fit_result['b'], l=fit_result['l']),
+         hazard_gm(x=age, a=fit_result['a'], b=fit_result['b'], l=fit_result['l']),
          color='blue', linewidth=1, label=r'Best-fit', zorder=1)
 
-upper_band = cumulative_hazard_gm(x=age, **fit_result) + vec_error(x=age)
-lower_band = cumulative_hazard_gm(x=age, **fit_result) - vec_error(x=age)
+upper_band = hazard_gm(x=age, **fit_result) + 1.96 * vec_error(x=age)
+lower_band = hazard_gm(x=age, **fit_result) - 1.96 * vec_error(x=age)
 
-# 68.3 confidence band
+# 95% confidence band
 plt.fill_between(age,
                  upper_band,
                  np.maximum(
                      np.asarray([1.e-5 for j in range(0, len(age))]),
                      np.asarray(lower_band)
                  ),
-                 facecolor='orange', alpha=0.5, linewidth=0.0, label=r'68.3% confidence')
+                 facecolor='orange', alpha=0.5, linewidth=0.0, label=r'95% confidence')
 
 # Because we are using log scale, we cannot have a negative lower band
 # The trick is to take max("a small number", *)
 
 plt.scatter(age,
-            cumulative_hazard,
+            hazard,
             color='black', marker='.', zorder=2, s=30, alpha=0.6, label='ELT16 life table')
 
 plt.xlim([1., 109.])
-plt.ylim([1.e-5, 1.])
+plt.ylim([8.e-5, 1.])
 
 plt.xlabel(r'Age (years)')
 plt.ylabel(r'Death rate')
 
-plt.title(r'p-value $=$' + str(p_value) + '\n' +
-          r'$\lambda =$' + str(fit_result['l'].value) + '\n' +
-          r'$\alpha =$' + str(fit_result['a'].value) + '\n' +
-          r'$\beta =$' + str(fit_result['b'].value)
-          )
+plt.title(
+    rf"$\alpha = {fit_result['a'].value:.3e}".replace("e-", r"\times 10^{-")
+    + r"}\,\mathrm{year}^{-1}$" + "\n"
+    + rf"$\beta = {fit_result['b'].value:.3e}".replace("e-", r"\times 10^{-")
+    + r"}\,\mathrm{year}^{-1}$" + "\n"
+    + rf"$\lambda = {fit_result['l'].value:.3e}".replace("e-", r"\times 10^{-")
+    + r"}\,\mathrm{year}^{-1}$"
+)
 
 plt.legend(loc='upper left', frameon=True, numpoints=1, ncol=1)
 
-plt.loglog()
+plt.yscale('log')
 plt.tight_layout()
-plt.savefig('./plots/plot_cumulative_hazard.pdf')
-plt.savefig('./plots/plot_cumulative_hazard.png')
+plt.savefig('./plots/plot_hazard.pdf')
+plt.savefig('./plots/plot_hazard.png')
 plt.close()
 
 # %%%%%%%%%%%%%%%%%
@@ -236,13 +237,13 @@ ci, trace = lmfit.conf_interval(mini, out2, sigmas=[0.68, 0.95],
 
 lmfit.printfuncs.report_ci(ci)
 
-# %%% a versus b %%%
+# %%% b versus a %%%
 
 cx, cy, grid = lmfit.conf_interval2d(mini,
                                      out2,
                                      'a', 'b',
                                      nx=60, ny=60,
-                                     limits=((1.e-6, 6.e-6), (0.08, 0.11))
+                                     limits=((1.e-5, 1.e-4), (0.08, 0.095))
                                      )
 
 plt.contourf(1.e5 * cx, 1.e2 * cy, grid, [0., 0.68, 0.95, 0.99], cmap='inferno')
@@ -262,12 +263,12 @@ cx, cy, grid = lmfit.conf_interval2d(mini,
                                      out2,
                                      'l', 'b',
                                      nx=60, ny=60,
-                                     limits=((5.e-6, 1.6e-5), (0.08, 0.11))
+                                     limits=((1.e-6, 1.e-4), (0.08, 0.095))
                                      )
 
-plt.contourf(1.e6 * cx, 1.e2 * cy, grid, [0., 0.68, 0.95, 0.99], cmap='inferno')
+plt.contourf(1.e5 * cx, 1.e2 * cy, grid, [0., 0.68, 0.95, 0.99], cmap='inferno')
 
-plt.xlabel(r'$\lambda \times 10^6 \,\, (\mathrm{year}^{-1})$')
+plt.xlabel(r'$\lambda \times 10^5 \,\, (\mathrm{year}^{-1})$')
 plt.colorbar()
 plt.ylabel(r'$\beta \times 10^2 \,\, (\mathrm{year}^{-1})$')
 
@@ -282,12 +283,12 @@ cx, cy, grid = lmfit.conf_interval2d(mini,
                                      out2,
                                      'l', 'a',
                                      nx=60, ny=60,
-                                     limits=((5.e-6, 1.6e-5), (1.e-6, 6.e-6))
+                                     limits=((1.e-6, 1.e-4), (1.e-5, 1.e-4))
                                      )
 
-plt.contourf(1.e6 * cx, 1.e5 * cy, grid, [0., 0.68, 0.95, 0.99], cmap='inferno')
+plt.contourf(1.e5 * cx, 1.e5 * cy, grid, [0., 0.68, 0.95, 0.99], cmap='inferno')
 
-plt.xlabel(r'$\lambda \times 10^6 \,\, (\mathrm{year}^{-1})$')
+plt.xlabel(r'$\lambda \times 10^5 \,\, (\mathrm{year}^{-1})$')
 plt.colorbar()
 plt.ylabel(r'$\alpha \times 10^5 \,\, (\mathrm{year}^{-1})$')
 
